@@ -53,11 +53,20 @@ def verification():
     else:
         print("Toutes les dependances sont deja presentes.")
 
+## Barre de progression ##
+def afficher_progression(actuel, total, prefixe=""):
+    taille = 20
+    progression = int(actuel * taille / total)
+    barre = "-" * progression + ">" + " " * (taille - progression - 1)
+    pourcentage = int(actuel * 100 / total)
+    print(f"\r{prefixe} [{barre}] {pourcentage}%", end="", flush=True)
+    if actuel == total: print()
+
 ## Gestion des cles ##
 def gestion_cle():
     print("\n--- GENERATION DE CLE ---")
 
-    # 1. Choix de l'algorithme
+    # Choix de l'algorithme
     algo_type = ""
     while algo_type not in ['1', '2']:
         print("1. AES")
@@ -66,7 +75,7 @@ def gestion_cle():
         if algo_type not in (1, 2):
             print("Veuillez saisir 1 ou 2.")
 
-    # 2. Choix de la longueur
+    # Choix de la longueur
     taille_map = {"128": 16, "192": 24, "256": 32}
     print("Longueurs disponibles : 128, 192, 256 bits")
     longueur = input("Longueur de la cle : ").strip()
@@ -125,135 +134,89 @@ def gestion_cle():
 
 ## SFTP ##
 def transfert_sftp():
-    print("\n--- CONFIGURATION DU SFTP ---")
-    # Parametres de connexion
-    host = input("IP du serveur distant : ").strip()
-    user = input("Nom d'utilisateur : ").strip()
-
-    auth_type = ""
-    while auth_type not in ['1', '2']:
-        print("Methode d'authentification :")
-        print("1. Mot de passe")
-        print("2. Cle privee")
-        auth_type = input("Votre choix (1-2) : ").strip()
+    print("\n--- 2. MODULE TRANSFERT SFTP ---")
+    host = input("IP du serveur : ").strip()
+    user = input("Utilisateur : ").strip()
+    pwd = input("Mot de passe : ")
 
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
     try:
-        # Selection de la methode d'authentification
-        if auth_type == '1':
-            pwd = input("Entrez le mot de passe : ")
-            client.connect(hostname=host, username=user, password=pwd, timeout=10)
-        else:
-            key_path = input("Chemin de la cle privee pour connexion : ").strip()
-            client.connect(hostname=host, username=user, key_filename=key_path, timeout=10)
-
-        print("Connexion etablie. Ouverture du canal SFTP...")
+        client.connect(hostname=host, username=user, password=pwd, timeout=10)
         sftp = client.open_sftp()
+        print("Connexion SSH/SFTP etablie.")
 
-        # Transfert de la cle vers le serveur distant
-        local_path = input("Chemin de la cle a transferer (ex: /var/keys/ma_cle.key) : ").strip()
+        # Etape obligee : Transfert de la cle
+        p_cle = input("Chemin de la cle a envoyer au serveur : ").strip()
+        if os.path.exists(p_cle):
+            sftp.put(p_cle, f"/tmp/{os.path.basename(p_cle)}")
+            print("Cle transferee avec succes.")
+        else:
+            print("Erreur : Fichier de cle introuvable.")
 
-        # On extrait le nom du fichier pour le mettre dans /tmp/ sur le serveur
-        filename = os.path.basename(local_path)
-        remote_path = f"/tmp/{filename}"
+        # Boucle de selection des fichiers/dossiers
+        print("\nSelection des elements a transferer (tapez 'ok' pour finir) :")
+        while True:
+            cible = input("Fichier ou dossier (ou 'ok') : ").strip()
+            if cible.lower() == 'ok': break
 
-        print(f"Transfert de {local_path} vers {remote_path}...")
-        sftp.put(local_path, remote_path)
+            if not os.path.exists(cible):
+                print("Erreur : Chemin introuvable.")
+                continue
 
-        # Verification du succes du transfert
-        try:
-            # demande au serveur les infos du fichier si absent genere une erreur
-            info = sftp.stat(remote_path)
-            print(f"Succes : Transfert confirme ({info.st_size} octets recus).")
-        except FileNotFoundError:
-            print("Erreur : Le fichier est introuvable sur le serveur apres transfert.")
+            liste = []
+            if os.path.isfile(cible):
+                liste.append(cible)
+            else:
+                for r, _, fs in os.walk(cible):
+                    for f in fs: liste.append(os.path.join(r, f))
+
+            for i, p in enumerate(liste, 1):
+                sftp.put(p, f"/tmp/{os.path.basename(p)}")
+                afficher_progression(i, len(liste), prefixe="SFTP")
+            print("\nTransfert reussi.")
 
         sftp.close()
-
-    # Gestion de erreurs de connexion et de transfert
-    except paramiko.AuthenticationException:
-        print("Erreur : Echec d'authentification (login ou secret incorrect).")
-    except paramiko.SSHException as e:
-        print(f"Erreur SSH : Probleme de protocole ou de connexion ({e}).")
-    except FileNotFoundError:
-        print(f"Erreur : Le fichier local '{local_path}' est introuvable.")
     except Exception as e:
-        print(f"Erreur imprevue : {e}")
+        print(f"Erreur SFTP : {e}")
     finally:
         client.close()
-        print("Session fermee.")
-
-    input("\nAppuyez sur Entree pour revenir au menu principal...")
 
 ## Chiffrement ##
 def chiffrement():
-    print("\n--- CHIFFREMENT DES DONNEES ---")
-
-    # Chargement de la cle creee
-    chemin_cle = input("Entrez le chemin de votre cle (ex: /var/keys/cle.key) : ").strip()
+    print("\n--- MODULE CHIFFREMENT ---")
+    chemin_cle = input("Chemin de la cle de chiffrement : ").strip()
     if not os.path.exists(chemin_cle):
-        print("Erreur : Fichier de cle introuvable.")
+        print("Erreur : Cle introuvable.")
         return
-
     try:
         with open(chemin_cle, 'rb') as f:
-            cle_brute = f.read()
-        # Preparation du format Fernet (Base64 + 32 octets)
-        cle_valide = base64.urlsafe_b64encode(cle_brute.ljust(32, b'\0')[:32])
-        fernet = Fernet(cle_valide)
+            c_brute = f.read()
+        c_fernet = base64.urlsafe_b64encode(c_brute.ljust(32, b'\0')[:32])
+        fernet = Fernet(c_fernet)
 
-        # Choix de la cible
-        print("Indiquez le chemin de ce que vous voulez chiffrer.")
-        print("(Il peut s'agir d'un fichier seul ou d'un dossier complet)")
-        cible = input("Chemin de la cible : ").strip()
-
+        cible = input("Fichier ou dossier local a chiffrer : ").strip()
         if not os.path.exists(cible):
-            print("Erreur : Le chemin specifie n'existe pas.")
+            print("Erreur : Cible introuvable.")
             return
 
-        # chiffrement in-place
-        def chiffrer_fichier(filepath):
-            try:
-                with open(filepath, 'rb') as f:
-                    donnees = f.read()
-
-                # On ne chiffre pas si le fichier est vide
-                if not donnees: return
-
-                # Chiffrement et remplacement du fichier (In-place)
-                donnees_chiffrees = fernet.encrypt(donnees)
-                with open(filepath, 'wb') as f:
-                    f.write(donnees_chiffrees)
-                print(f"Succes : {filepath} chiffre.")
-            except Exception as e:
-                print(f"Echec sur {filepath} : {e}")
-
-        # Traitement
+        liste = []
         if os.path.isfile(cible):
-            # Cas d'un fichier individuel
-            confirmation = input(f"Confirmez-vous le chiffrement du fichier {cible} ? (o/n) : ").lower()
-            if confirmation in ['o', 'y']:
-                chiffrer_fichier(cible)
-            else:
-                print("Operation annulee.")
+            liste.append(cible)
+        else:
+            for r, _, fs in os.walk(cible):
+                for f in fs: liste.append(os.path.join(r, f))
 
-        elif os.path.isdir(cible):
-            # Cas d'un dossier entier
-            confirmation = input(f"Confirmez-vous le chiffrement de TOUS les fichiers dans {cible} ? (o/n) : ").lower()
-            if confirmation in ['o', 'y']:
-                # Parcours recursif du dossier
-                for racine, sous_dossiers, fichiers in os.walk(cible):
-                    for nom_fichier in fichiers:
-                        chemin_complet = os.path.join(racine, nom_fichier)
-                        chiffrer_fichier(chemin_complet)
-                print("Traitement du dossier termine.")
-            else:
-                print("Operation annulee.")
-
+        for i, p in enumerate(liste, 1):
+            with open(p, 'rb') as f:
+                data = f.read()
+            with open(p, 'wb') as f:
+                f.write(fernet.encrypt(data))
+            afficher_progression(i, len(liste), prefixe="Chiffrement")
+        print("\nChiffrement local termine.")
     except Exception as e:
-        print(f"Erreur lors du module de chiffrement : {e}")
+        print(f"Erreur chiffrement : {e}")
 
 ## Menu Principal ##
 def afficher_menu():
@@ -293,8 +256,6 @@ def menu_principal():
 
         else:
             print(f"\nErreur : '{choix}' n'est pas une option valide. Veuillez saisir un chiffre entre 1 et 4.")
-
-
 
 if __name__ == "__main__":
     verification()

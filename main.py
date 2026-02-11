@@ -122,7 +122,68 @@ def gestion_cle():
     else:
         menu_principal()
 
+def transfert_sftp():
+    print("\n--- CONFIGURATION DU SFTP ---")
+    # Parametres de connexion
+    host = input("IP du serveur distant : ").strip()
+    user = input("Nom d'utilisateur : ").strip()
 
+    auth_type = ""
+    while auth_type not in ['1', '2']:
+        print("Methode d'authentification :")
+        print("1. Mot de passe")
+        print("2. Cle privee")
+        auth_type = input("Votre choix (1-2) : ").strip()
+
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    try:
+        # Selection de la methode d'authentification
+        if auth_type == '1':
+            pwd = input("Entrez le mot de passe : ")
+            client.connect(hostname=host, username=user, password=pwd, timeout=10)
+        else:
+            key_path = input("Chemin de la cle privee pour connexion : ").strip()
+            client.connect(hostname=host, username=user, key_filename=key_path, timeout=10)
+
+        print("Connexion etablie. Ouverture du canal SFTP...")
+        sftp = client.open_sftp()
+
+        # Transfert de la cle vers le serveur distant
+        local_path = input("Chemin de la cle a transferer (ex: /var/keys/ma_cle.key) : ").strip()
+
+        # On extrait le nom du fichier pour le mettre dans /tmp/ sur le serveur
+        filename = os.path.basename(local_path)
+        remote_path = f"/tmp/{filename}"
+
+        print(f"Transfert de {local_path} vers {remote_path}...")
+        sftp.put(local_path, remote_path)
+
+        # Verification du succes du transfert
+        try:
+            # demande au serveur les infos du fichier si absent genere une erreur
+            info = sftp.stat(remote_path)
+            print(f"Succes : Transfert confirme ({info.st_size} octets recus).")
+        except FileNotFoundError:
+            print("Erreur : Le fichier est introuvable sur le serveur apres transfert.")
+
+        sftp.close()
+
+    # Gestion de erreurs de connexion et de transfert
+    except paramiko.AuthenticationException:
+        print("Erreur : Echec d'authentification (login ou secret incorrect).")
+    except paramiko.SSHException as e:
+        print(f"Erreur SSH : Probleme de protocole ou de connexion ({e}).")
+    except FileNotFoundError:
+        print(f"Erreur : Le fichier local '{local_path}' est introuvable.")
+    except Exception as e:
+        print(f"Erreur imprevue : {e}")
+    finally:
+        client.close()
+        print("Session fermee.")
+
+    input("\nAppuyez sur Entree pour revenir au menu principal...")
 
 
 ## Menu Principal ##
@@ -150,7 +211,7 @@ def menu_principal():
 
         elif choix == '2':
             print("\n[Action] Transfert de fichiers")
-
+            transfert_sftp()
             input("\nAppuyez sur Entree pour revenir au menu...")
 
         elif choix == '3':

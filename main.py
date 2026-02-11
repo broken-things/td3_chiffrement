@@ -5,10 +5,11 @@ import importlib.metadata
 import os
 import secrets
 import paramiko
+import base64
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-
+from cryptography.fernet import Fernet
 
 ## Dependances ##
 def verification():
@@ -122,6 +123,7 @@ def gestion_cle():
     else:
         menu_principal()
 
+## SFTP ##
 def transfert_sftp():
     print("\n--- CONFIGURATION DU SFTP ---")
     # Parametres de connexion
@@ -185,9 +187,75 @@ def transfert_sftp():
 
     input("\nAppuyez sur Entree pour revenir au menu principal...")
 
+## Chiffrement ##
+def chiffrement():
+    print("\n--- CHIFFREMENT DES DONNEES ---")
+
+    # Chargement de la cle creee
+    chemin_cle = input("Entrez le chemin de votre cle (ex: /var/keys/cle.key) : ").strip()
+    if not os.path.exists(chemin_cle):
+        print("Erreur : Fichier de cle introuvable.")
+        return
+
+    try:
+        with open(chemin_cle, 'rb') as f:
+            cle_brute = f.read()
+        # Preparation du format Fernet (Base64 + 32 octets)
+        cle_valide = base64.urlsafe_b64encode(cle_brute.ljust(32, b'\0')[:32])
+        fernet = Fernet(cle_valide)
+
+        # Choix de la cible
+        print("Indiquez le chemin de ce que vous voulez chiffrer.")
+        print("(Il peut s'agir d'un fichier seul ou d'un dossier complet)")
+        cible = input("Chemin de la cible : ").strip()
+
+        if not os.path.exists(cible):
+            print("Erreur : Le chemin specifie n'existe pas.")
+            return
+
+        # chiffrement in-place
+        def chiffrer_fichier(filepath):
+            try:
+                with open(filepath, 'rb') as f:
+                    donnees = f.read()
+
+                # On ne chiffre pas si le fichier est vide
+                if not donnees: return
+
+                # Chiffrement et remplacement du fichier (In-place)
+                donnees_chiffrees = fernet.encrypt(donnees)
+                with open(filepath, 'wb') as f:
+                    f.write(donnees_chiffrees)
+                print(f"Succes : {filepath} chiffre.")
+            except Exception as e:
+                print(f"Echec sur {filepath} : {e}")
+
+        # Traitement
+        if os.path.isfile(cible):
+            # Cas d'un fichier individuel
+            confirmation = input(f"Confirmez-vous le chiffrement du fichier {cible} ? (o/n) : ").lower()
+            if confirmation in ['o', 'y']:
+                chiffrer_fichier(cible)
+            else:
+                print("Operation annulee.")
+
+        elif os.path.isdir(cible):
+            # Cas d'un dossier entier
+            confirmation = input(f"Confirmez-vous le chiffrement de TOUS les fichiers dans {cible} ? (o/n) : ").lower()
+            if confirmation in ['o', 'y']:
+                # Parcours recursif du dossier
+                for racine, sous_dossiers, fichiers in os.walk(cible):
+                    for nom_fichier in fichiers:
+                        chemin_complet = os.path.join(racine, nom_fichier)
+                        chiffrer_fichier(chemin_complet)
+                print("Traitement du dossier termine.")
+            else:
+                print("Operation annulee.")
+
+    except Exception as e:
+        print(f"Erreur lors du module de chiffrement : {e}")
 
 ## Menu Principal ##
-
 def afficher_menu():
     """Affiche l'interface visuelle du menu."""
     print("\n" + "=" * 30)
@@ -216,6 +284,7 @@ def menu_principal():
 
         elif choix == '3':
             print("\n[Action] Module de chiffrement")
+            chiffrement()
             input("\nAppuyez sur Entree pour revenir au menu...")
 
         elif choix == '4':

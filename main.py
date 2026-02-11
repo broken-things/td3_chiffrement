@@ -2,6 +2,7 @@
 import sys
 import subprocess
 import importlib.metadata
+import os
 
 ## Installation des dependances ##
 def verification():
@@ -45,5 +46,47 @@ def verification():
             print("Installation annulée.")
     else:
         print("Toutes les dépendances sont déjà présentes.")
+
+## Menu Principal ##
+
+def afficher_menu():
+    """Affiche l'interface visuelle du menu."""
+    print("\n" + "=" * 30)
+    print("Menu principal")
+    print("=" * 30)
+    print("1. Gestion des clés")
+    print("2. Transfert de fichiers")
+    print("3. Chiffrement")
+    print("4. Quitter")
+    print("=" * 30)
+
+
+def menu_principal():
+    while True:
+        afficher_menu()
+        choix = input("Choisissez une option (1-4) : ").strip()
+
+        if choix == '1':
+            print("\n[Action] Accès à la gestion des clés")
+            # Appeler la fonction de la Partie C ici
+            input("\nAppuyez sur Entrée pour revenir au menu...")
+
+        elif choix == '2':
+            print("\n[Action] Transfert de fichiers")
+            # Appeler la fonction de la Partie D ici
+            input("\nAppuyez sur Entrée pour revenir au menu...")
+
+        elif choix == '3':
+            print("\n[Action] Module de chiffrement")
+            input("\nAppuyez sur Entrée pour revenir au menu...")
+
+        elif choix == '4':
+            print("Fermeture du programme.")
+            break  # Sortie de la boucle while
+
+        else:
+            print(f"\nErreur : '{choix}' n'est pas une option valide. Veuillez saisir un chiffre entre 1 et 4.")
+
 if __name__ == "__main__":
     verification()
+    menu_principal()

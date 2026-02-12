@@ -38,21 +38,25 @@ def verification():
 
         if choix.lower() == 'o':
             for dependance in manquants:
+                print(f"Installation de {dependance}...")
                 try:
-                    print(f"Installation de {dependance}...")
-                    subprocess.check_call([sys.executable, "-m", "pip", "install", dependance, "--break-system-packages"])
-                    print(f"{dependance} installe.")
-                except Exception as e:
-                    print(f"Erreur lors de l'installation de {dependance} : {e}")
+                    # Tentative 1 : Installation standard
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", dependance])
+                    print(f"{dependance} installe avec succes.")
+                except subprocess.CalledProcessError:
+                    try:
+                        # Tentative 2 : Installation avec le flag pour systemes recents
+                        print("Echec standard, tentative avec --break-system-packages...")
+                        subprocess.check_call(
+                            [sys.executable, "-m", "pip", "install", dependance, "--break-system-packages"])
+                        print(f"{dependance} installe avec le flag.")
+                    except Exception as e:
+                        print(f"Erreur critique lors de l'installation de {dependance} : {e}")
         else:
             print("Installation annulee.")
     else:
         print("Toutes les dependances sont deja presentes.")
 
-import paramiko
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.fernet import Fernet
 
 ## Barre de progression ##
 def afficher_progression(actuel, total, prefixe=""):
@@ -65,6 +69,8 @@ def afficher_progression(actuel, total, prefixe=""):
 
 ## Gestion des cles ##
 def gestion_cle():
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    from cryptography.hazmat.primitives import hashes
     print("\n--- GENERATION DE CLE ---")
 
     # Choix de l'algorithme
@@ -135,6 +141,7 @@ def gestion_cle():
 
 ## SFTP ##
 def transfert_sftp():
+    import paramiko
     print("\n--- 2. MODULE TRANSFERT SFTP ---")
     host = input("IP du serveur : ").strip()
     user = input("Utilisateur : ").strip()
@@ -186,6 +193,9 @@ def transfert_sftp():
 
 ## Chiffrement ##
 def chiffrement():
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    from cryptography.fernet import Fernet
     print("\n--- MODULE CHIFFREMENT ---")
     chemin_cle = input("Chemin de la cle de chiffrement : ").strip()
     if not os.path.exists(chemin_cle):

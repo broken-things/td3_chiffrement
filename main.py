@@ -4,12 +4,8 @@ import subprocess
 import importlib.metadata
 import os
 import secrets
-import paramiko
 import base64
 
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.fernet import Fernet
 
 ## Dependances ##
 def verification():
@@ -52,6 +48,11 @@ def verification():
             print("Installation annulee.")
     else:
         print("Toutes les dependances sont deja presentes.")
+
+import paramiko
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.fernet import Fernet
 
 ## Barre de progression ##
 def afficher_progression(actuel, total, prefixe=""):
